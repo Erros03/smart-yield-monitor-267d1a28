@@ -1,14 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Sprout, Percent, Ruler, XCircle } from "lucide-react";
+import { Sprout, Ruler, Hash } from "lucide-react";
 import { StatCardGrid, type StatCardItem } from "@/components/dashboard/StatCards";
 import { SizeRipenessPanel } from "@/components/dashboard/SizeRipenessPanel";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useDashboardData } from "@/hooks/useDashboardData";
-import {
-  computeMetrics,
-  getAcceptedDetections,
-  type TomatoSize,
-} from "@/lib/dashboard-data";
+import { computeMetrics, type TomatoSize } from "@/lib/dashboard-data";
 
 export const Route = createFileRoute("/yield-monitoring")({
   head: () => ({
@@ -17,13 +13,13 @@ export const Route = createFileRoute("/yield-monitoring")({
       {
         name: "description",
         content:
-          "Track marketable yield, acceptance rate, average diameter, and size-class distribution of sorted tomatoes.",
+          "Track yield volume, average diameter, and size-class distribution of sorted tomatoes.",
       },
       { property: "og:title", content: "Yield Monitoring | Sprout Savvy Connect" },
       {
         property: "og:description",
         content:
-          "Track marketable yield, acceptance rate, average diameter, and size-class distribution of sorted tomatoes.",
+          "Track yield volume, average diameter, and size-class distribution of sorted tomatoes.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -37,23 +33,14 @@ const SIZE_ORDER: TomatoSize[] = ["Small", "Medium", "Large"];
 function YieldMonitoringPage() {
   const { data, loading, error } = useDashboardData();
   const metrics = computeMetrics(data.detections);
-  const accepted = getAcceptedDetections(data.detections);
-  const acceptedMetrics = computeMetrics(accepted);
 
   const items: StatCardItem[] = [
     {
-      label: "Marketable Yield",
-      value: metrics.accepted,
+      label: "Total Detections",
+      value: metrics.total,
       icon: Sprout,
       color: "text-leaf",
       bg: "bg-leaf/10",
-    },
-    {
-      label: "Acceptance Rate",
-      value: `${metrics.acceptanceRate}%`,
-      icon: Percent,
-      color: "text-accent",
-      bg: "bg-accent/10",
     },
     {
       label: "Average Diameter",
@@ -61,13 +48,6 @@ function YieldMonitoringPage() {
       icon: Ruler,
       color: "text-tomato",
       bg: "bg-tomato/10",
-    },
-    {
-      label: "Rejected Fruit",
-      value: metrics.rejected,
-      icon: XCircle,
-      color: "text-danger",
-      bg: "bg-danger/10",
     },
   ];
 
@@ -101,23 +81,23 @@ function YieldMonitoringPage() {
 
           <div className="grid gap-6 lg:grid-cols-3">
             <SizeRipenessPanel
-              detections={accepted}
+              detections={data.detections}
               title="Marketable Size & Ripeness"
-              description="Grading breakdown of accepted fruit only"
+              description="Grading breakdown of all detected fruit"
             />
 
             <Card className="border border-border/60 bg-card shadow-sm lg:col-span-2">
               <CardHeader className="pb-4">
                 <CardTitle className="text-base font-semibold">Yield by Size Class</CardTitle>
                 <CardDescription>
-                  Accepted fruit per size class, with share of marketable yield
+                  Detected fruit per size class, with share of total yield
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {SIZE_ORDER.map((size) => {
-                  const count = acceptedMetrics.size.counts[size] ?? 0;
-                  const totalAccepted = Math.max(acceptedMetrics.total, 1);
-                  const pct = Math.round((count / totalAccepted) * 100);
+                  const count = metrics.size.counts[size] ?? 0;
+                  const totalCount = Math.max(metrics.total, 1);
+                  const pct = Math.round((count / totalCount) * 100);
                   return (
                     <div
                       key={size}
@@ -144,8 +124,8 @@ function YieldMonitoringPage() {
                   );
                 })}
                 <p className="text-xs text-muted-foreground">
-                  Accepted fruit average {acceptedMetrics.size.avgDiameter} mm in diameter across{" "}
-                  {acceptedMetrics.total} marketable tomatoes.
+                  Detected fruit average {metrics.size.avgDiameter} mm in diameter across{" "}
+                  {metrics.total} tomatoes.
                 </p>
               </CardContent>
             </Card>
