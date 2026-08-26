@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { History } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -6,10 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import {
   getAllDetections,
-  getActionColor,
   getLabelColor,
   formatDateTime,
-  type TomatoAction,
 } from "@/lib/dashboard-data";
 
 export const Route = createFileRoute("/history")({
@@ -19,13 +16,13 @@ export const Route = createFileRoute("/history")({
       {
         name: "description",
         content:
-          "Full detection history from the tomato sorting line with action, size, ripeness, and confidence filters.",
+          "Full detection history from the tomato sorting line with size, ripeness, and confidence details.",
       },
       { property: "og:title", content: "History | Sprout Savvy Connect" },
       {
         property: "og:description",
         content:
-          "Full detection history from the tomato sorting line with action, size, ripeness, and confidence filters.",
+          "Full detection history from the tomato sorting line with size, ripeness, and confidence details.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -34,21 +31,10 @@ export const Route = createFileRoute("/history")({
   component: HistoryPage,
 });
 
-type Filter = "All" | TomatoAction;
-const FILTERS: Filter[] = ["All", "Accepted", "Rejected"];
-
 function HistoryPage() {
   const { data, loading, error } = useDashboardData();
-  const [filter, setFilter] = useState<Filter>("All");
 
-  const all = getAllDetections(data.detections);
-  const rows = filter === "All" ? all : all.filter((d) => d.action === filter);
-
-  const counts: Record<Filter, number> = {
-    All: all.length,
-    Accepted: all.filter((d) => d.action === "Accepted").length,
-    Rejected: all.filter((d) => d.action === "Rejected").length,
-  };
+  const rows = getAllDetections(data.detections);
 
   return (
     <div className="min-h-screen bg-background">
@@ -77,30 +63,13 @@ function HistoryPage() {
 
         <div className="mt-6 rounded-xl border border-border/60 bg-card shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-6 py-4">
-            <h2 className="text-base font-semibold text-foreground">Detection Log</h2>
-            <div className="flex gap-1 rounded-lg bg-muted p-1">
-              {FILTERS.map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                    filter === f
-                      ? "bg-card text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {f} ({counts[f]})
-                </button>
-              ))}
-            </div>
-          </div>
+            <h2 className="text-base font-semibold text-foreground">Detection Log</h2>          </div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Date & Time</TableHead>
                   <TableHead>Label</TableHead>
-                  <TableHead>Action</TableHead>
                   <TableHead>Size</TableHead>
                   <TableHead>Ripeness</TableHead>
                   <TableHead className="text-right">Confidence</TableHead>
@@ -109,8 +78,8 @@ function HistoryPage() {
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
-                      No detections recorded{filter !== "All" ? ` for “${filter}”` : ""}.
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      No detections recorded.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -122,11 +91,6 @@ function HistoryPage() {
                       <TableCell>
                         <Badge variant="outline" className={getLabelColor(detection.label)}>
                           {detection.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={getActionColor(detection.action)}>
-                          {detection.action}
                         </Badge>
                       </TableCell>
                       <TableCell>

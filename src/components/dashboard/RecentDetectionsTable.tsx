@@ -1,7 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { Detection } from "@/lib/dashboard-data";
-import { getLatestDetections, getActionColor, getLabelColor, formatTimestamp } from "@/lib/dashboard-data";
+import { getLatestDetections, getLabelColor, formatTimestamp } from "@/lib/dashboard-data";
 
 export function RecentDetectionsTable({ detections }: { detections: Record<string, Detection> }) {
   const rows = getLatestDetections(detections, 10);
@@ -18,7 +18,6 @@ export function RecentDetectionsTable({ detections }: { detections: Record<strin
             <TableRow>
               <TableHead>Time</TableHead>
               <TableHead>Label</TableHead>
-              <TableHead>Action</TableHead>
               <TableHead>Size</TableHead>
               <TableHead>Ripeness</TableHead>
               <TableHead className="text-right">Confidence</TableHead>
@@ -27,7 +26,7 @@ export function RecentDetectionsTable({ detections }: { detections: Record<strin
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   No detections yet.
                 </TableCell>
               </TableRow>
@@ -40,11 +39,6 @@ export function RecentDetectionsTable({ detections }: { detections: Record<strin
                   <TableCell>
                     <Badge variant="outline" className={getLabelColor(detection.label)}>
                       {detection.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={getActionColor(detection.action)}>
-                      {detection.action}
                     </Badge>
                   </TableCell>
                   <TableCell>

@@ -146,7 +146,7 @@ export const DEMO_DATA: DashboardData = {
     },
     servo: {
       name: "Servo Motor (Sorter)",
-      detail: "Reject gate · 0°/90°",
+      detail: "Sorting gate · 0°/90°",
       state: "standby",
     },
     sensors: {

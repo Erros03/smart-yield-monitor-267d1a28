@@ -1,11 +1,8 @@
 import {
-  CheckCircle2,
-  XCircle,
   Leaf,
   AlertTriangle,
   Timer,
   TrendingUp,
-  Percent,
   Ruler,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,20 +58,6 @@ export function StatCards({ detections }: { detections: Record<string, Detection
       bg: "bg-primary/10",
     },
     {
-      label: "Accepted",
-      value: metrics.accepted,
-      icon: CheckCircle2,
-      color: "text-success",
-      bg: "bg-success/10",
-    },
-    {
-      label: "Rejected",
-      value: metrics.rejected,
-      icon: XCircle,
-      color: "text-danger",
-      bg: "bg-danger/10",
-    },
-    {
       label: "Healthy",
       value: metrics.healthy,
       icon: Leaf,
@@ -94,13 +77,6 @@ export function StatCards({ detections }: { detections: Record<string, Detection
       icon: Timer,
       color: "text-info",
       bg: "bg-info/10",
-    },
-    {
-      label: "Acceptance Rate",
-      value: `${metrics.acceptanceRate}%`,
-      icon: Percent,
-      color: "text-accent",
-      bg: "bg-accent/10",
     },
     {
       label: "Average Diameter",
