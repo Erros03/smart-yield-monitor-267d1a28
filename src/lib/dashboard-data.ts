@@ -1,4 +1,3 @@
-export type TomatoAction = "Accepted" | "Rejected";
 export type TomatoSize = "Small" | "Medium" | "Large";
 export type TomatoRipeness = "Ripe" | "Unripe";
 export type TomatoLabel =
@@ -19,7 +18,6 @@ export interface Detection {
   id: string;
   label: TomatoLabel;
   confidence: number;
-  action: TomatoAction;
   diameterMm: number;
   size: TomatoSize;
   ripeness: TomatoRipeness;
@@ -39,16 +37,12 @@ export interface DashboardData {
 
 /**
  * Aggregate metrics for the dashboard. Exposed as a single object so pages can
- * read values like `metrics.acceptanceRate` and `metrics.size.avgDiameter`.
+ * read values like `metrics.size.avgDiameter`.
  */
 export interface DashboardMetrics {
   total: number;
-  accepted: number;
-  rejected: number;
   healthy: number;
   diseased: number;
-  /** Percentage (0-100) of detections whose action was "Accepted". */
-  acceptanceRate: number;
   /** Mean model confidence (0-100). */
   avgConfidence: number;
   size: {
@@ -65,7 +59,6 @@ export const DEMO_DATA: DashboardData = {
       id: "healthy-01",
       label: "Healthy",
       confidence: 94,
-      action: "Accepted",
       diameterMm: 61,
       size: "Medium",
       ripeness: "Ripe",
@@ -75,7 +68,6 @@ export const DEMO_DATA: DashboardData = {
       id: "healthy-02",
       label: "Healthy",
       confidence: 91,
-      action: "Accepted",
       diameterMm: 58,
       size: "Medium",
       ripeness: "Ripe",
@@ -85,7 +77,6 @@ export const DEMO_DATA: DashboardData = {
       id: "early-blight-01",
       label: "Early Blight",
       confidence: 89,
-      action: "Rejected",
       diameterMm: 45,
       size: "Small",
       ripeness: "Unripe",
@@ -95,7 +86,6 @@ export const DEMO_DATA: DashboardData = {
       id: "healthy-03",
       label: "Healthy",
       confidence: 96,
-      action: "Accepted",
       diameterMm: 72,
       size: "Large",
       ripeness: "Ripe",
@@ -105,7 +95,6 @@ export const DEMO_DATA: DashboardData = {
       id: "late-blight-01",
       label: "Late Blight",
       confidence: 87,
-      action: "Rejected",
       diameterMm: 49,
       size: "Small",
       ripeness: "Ripe",
@@ -115,7 +104,6 @@ export const DEMO_DATA: DashboardData = {
       id: "healthy-04",
       label: "Healthy",
       confidence: 92,
-      action: "Accepted",
       diameterMm: 64,
       size: "Medium",
       ripeness: "Unripe",
@@ -125,7 +113,6 @@ export const DEMO_DATA: DashboardData = {
       id: "early-blight-02",
       label: "Early Blight",
       confidence: 85,
-      action: "Rejected",
       diameterMm: 55,
       size: "Medium",
       ripeness: "Ripe",
@@ -135,7 +122,6 @@ export const DEMO_DATA: DashboardData = {
       id: "healthy-05",
       label: "Healthy",
       confidence: 93,
-      action: "Accepted",
       diameterMm: 67,
       size: "Medium",
       ripeness: "Ripe",
@@ -179,8 +165,6 @@ export const DEMO_DATA: DashboardData = {
 export function computeMetrics(detections: Record<string, Detection>): DashboardMetrics {
   const values = Object.values(detections);
   const total = values.length;
-  const accepted = values.filter((d) => d.action === "Accepted").length;
-  const rejected = values.filter((d) => d.action === "Rejected").length;
   const healthy = values.filter((d) => d.label === "Healthy").length;
   const diseased = total - healthy;
 
@@ -198,11 +182,8 @@ export function computeMetrics(detections: Record<string, Detection>): Dashboard
 
   return {
     total,
-    accepted,
-    rejected,
     healthy,
     diseased,
-    acceptanceRate: total > 0 ? Math.round((accepted / total) * 100) : 0,
     avgConfidence: total > 0 ? Math.round(confidenceSum / total) : 0,
     size: {
       avgDiameter: total > 0 ? Math.round(diameterSum / total) : 0,
@@ -223,18 +204,6 @@ export function getLatestDetections(
 
 export function getAllDetections(detections: Record<string, Detection>): Detection[] {
   return Object.values(detections).sort((a, b) => b.timestamp - a.timestamp);
-}
-
-export function getAcceptedDetections(detections: Record<string, Detection>): Record<string, Detection> {
-  return Object.values(detections)
-    .filter((d) => d.action === "Accepted")
-    .reduce(
-      (acc, d) => {
-        acc[d.id] = d;
-        return acc;
-      },
-      {} as Record<string, Detection>
-    );
 }
 
 export function getDiseaseDetections(detections: Record<string, Detection>): Detection[] {
@@ -288,16 +257,20 @@ export function getStateColor(state: HardwareState): string {
   }
 }
 
-export function getActionColor(action: TomatoAction): string {
-  return action === "Accepted"
-    ? "bg-success/15 text-success border-success/20"
-    : "bg-danger/15 text-danger border-danger/20";
-}
-
 export function getLabelColor(label: TomatoLabel): string {
   if (label === "Healthy") return "bg-success/15 text-success border-success/20";
   if (label.includes("Blight") || label.includes("Spot") || label.includes("Mold")) {
     return "bg-danger/15 text-danger border-danger/20";
   }
   return "bg-warning/15 text-warning-foreground border-warning/20";
+}
+
+export function computeRipenessCounts(detections: Record<string, Detection>) {
+  return Object.values(detections).reduce(
+    (acc, detection) => {
+      acc[detection.ripeness] = (acc[detection.ripeness] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
 }
