@@ -59,39 +59,16 @@ function LiveStreamPage() {
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
           <Card className="border border-border/60 bg-card shadow-sm lg:col-span-2">
             <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Camera className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-base font-semibold">YOLO Vision Camera</CardTitle>
-                </div>
-                <Badge variant="outline" className="text-xs font-medium">
-                  30 FPS inference
-                </Badge>
+              <div className="flex items-center gap-2">
+                <Camera className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base font-semibold">AI Detection Camera</CardTitle>
               </div>
-              <CardDescription>Conveyor belt inspection viewport</CardDescription>
+              <CardDescription>
+                Run your trained Roboflow model on camera frames or uploaded images
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="relative aspect-video overflow-hidden rounded-lg bg-foreground">
-                <div className="absolute top-3 left-3 z-10">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-danger px-2.5 py-1 text-xs font-semibold text-danger-foreground">
-                    <span className="relative flex h-2 w-2 rounded-full bg-danger-foreground">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-danger-foreground opacity-75" />
-                    </span>
-                    REC
-                  </span>
-                </div>
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-background/80">
-                  <Crosshair className="h-10 w-10 opacity-60" />
-                  <p className="text-sm font-medium">
-                    {live
-                      ? "Connected — receiving annotated frames from the edge device"
-                      : "Camera feed idle — start the edge inference client to stream frames"}
-                  </p>
-                  <p className="text-xs text-background/50">
-                    Detections below update in real time as fruit passes the camera
-                  </p>
-                </div>
-              </div>
+              <RoboflowDetector />
             </CardContent>
           </Card>
 
