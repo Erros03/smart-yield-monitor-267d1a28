@@ -4,12 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { LivePill } from "@/components/dashboard/DashboardHeader";
 import { useDashboardData } from "@/hooks/useDashboardData";
-import {
-  getLatestDetections,
-  getActionColor,
-  getLabelColor,
-  formatTimestamp,
-} from "@/lib/dashboard-data";
+import { getLatestDetections, getLabelColor, formatTimestamp } from "@/lib/dashboard-data";
 
 export const Route = createFileRoute("/live-stream")({
   head: () => ({
@@ -123,9 +118,9 @@ function LiveStreamPage() {
                         {detection.ripeness}
                       </p>
                     </div>
-                    <Badge variant="outline" className={`shrink-0 ${getActionColor(detection.action)}`}>
-                      {detection.action}
-                    </Badge>
+                    <span className="shrink-0 text-xs font-semibold text-foreground">
+                      {detection.confidence}%
+                    </span>
                   </div>
                 ))
               )}
