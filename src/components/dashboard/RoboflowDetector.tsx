@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from "react";
-import { Camera, CameraOff, ScanSearch, Upload, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Camera, CameraOff, ScanSearch, Upload, Loader2, Radio, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useServerFn } from "@tanstack/react-start";
@@ -32,6 +32,9 @@ export function RoboflowDetector() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RoboflowDetectionResult | null>(null);
   const [still, setStill] = useState<string | null>(null);
+  const [liveDetect, setLiveDetect] = useState(false);
+  const [intervalMs, setIntervalMs] = useState(1000);
+  const [fps, setFps] = useState(0);
 
   const startCamera = async () => {
     setError(null);
@@ -99,8 +102,12 @@ export function RoboflowDetector() {
     [],
   );
 
-  const analyze = async (imageBase64: string, source: HTMLVideoElement | HTMLImageElement) => {
-    setAnalyzing(true);
+  const analyze = async (
+    imageBase64: string,
+    source: HTMLVideoElement | HTMLImageElement,
+    silent = false,
+  ) => {
+    if (!silent) setAnalyzing(true);
     setError(null);
     try {
       const detections = await detect({ data: { imageBase64 } });
@@ -108,21 +115,57 @@ export function RoboflowDetector() {
       drawResult(detections, source);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Detection failed. Please try again.");
+      throw err;
     } finally {
-      setAnalyzing(false);
+      if (!silent) setAnalyzing(false);
     }
   };
 
-  const analyzeFrame = () => {
+  const captureFrame = () => {
     const video = videoRef.current;
-    if (!video || !video.videoWidth) return;
+    if (!video || !video.videoWidth) return null;
     const capture = document.createElement("canvas");
     capture.width = video.videoWidth;
     capture.height = video.videoHeight;
     capture.getContext("2d")?.drawImage(video, 0, 0);
-    const base64 = capture.toDataURL("image/jpeg", 0.85).split(",")[1] ?? "";
-    void analyze(base64, video);
+    return { video, base64: capture.toDataURL("image/jpeg", 0.7).split(",")[1] ?? "" };
   };
+
+  const analyzeFrame = () => {
+    const frame = captureFrame();
+    if (!frame) return;
+    void analyze(frame.base64, frame.video).catch(() => {});
+  };
+
+  // Continuous real-time loop: analyzes the newest frame as soon as the
+  // previous inference resolves, throttled by the interval below.
+  useEffect(() => {
+    if (!liveDetect || !cameraOn) return;
+    let stopped = false;
+
+    const loop = async () => {
+      while (!stopped) {
+        const frame = captureFrame();
+        if (frame) {
+          const started = performance.now();
+          try {
+            await analyze(frame.base64, frame.video, true);
+          } catch {
+            setLiveDetect(false);
+            return;
+          }
+          setFps(Math.round(1000 / Math.max(1, performance.now() - started)) || 0);
+        }
+        await new Promise((r) => setTimeout(r, intervalMs));
+      }
+    };
+
+    void loop();
+    return () => {
+      stopped = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveDetect, cameraOn, intervalMs]);
 
   const handleUpload = (file: File) => {
     const reader = new FileReader();
