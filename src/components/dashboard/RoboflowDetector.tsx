@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from "react";
-import { Camera, CameraOff, ScanSearch, Upload, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Camera, CameraOff, ScanSearch, Upload, Loader2, Radio, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useServerFn } from "@tanstack/react-start";
