@@ -120,7 +120,7 @@ export function RoboflowDetector() {
     capture.width = video.videoWidth;
     capture.height = video.videoHeight;
     capture.getContext("2d")?.drawImage(video, 0, 0);
-    const base64 = capture.toDataURL("image/jpeg", 0.85).split(",")[1];
+    const base64 = capture.toDataURL("image/jpeg", 0.85).split(",")[1] ?? "";
     void analyze(base64, video);
   };
 
@@ -128,7 +128,7 @@ export function RoboflowDetector() {
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = String(reader.result);
-      const base64 = dataUrl.split(",")[1];
+      const base64 = dataUrl.split(",")[1] ?? "";
       const img = new Image();
       img.onload = () => {
         stopCamera();

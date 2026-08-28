@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Video, Camera } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { RoboflowDetector } from "@/components/dashboard/RoboflowDetector";
+import { Badge } from "@/components/ui/badge";
 import { LivePill } from "@/components/dashboard/DashboardHeader";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { getLatestDetections, getLabelColor, formatTimestamp } from "@/lib/dashboard-data";
