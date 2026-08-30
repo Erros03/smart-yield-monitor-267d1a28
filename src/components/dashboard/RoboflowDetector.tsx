@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, CameraOff, ScanSearch, Upload, Loader2, Radio, Square } from "lucide-react";
+import { CameraOff, ScanSearch, Upload, Loader2, Radio, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useServerFn } from "@tanstack/react-start";
@@ -20,54 +20,31 @@ function prettify(name: string) {
   return name.replace(/_/g, " ");
 }
 
+type PermissionState = "idle" | "prompting" | "granted" | "denied" | "notfound" | "error";
+
 export function RoboflowDetector() {
   const detect = useServerFn(detectTomatoesFn);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const startedRef = useRef(false);
+  const runningRef = useRef(false);
 
+  const [permission, setPermission] = useState<PermissionState>("idle");
   const [cameraOn, setCameraOn] = useState(false);
-  const [stream, setStream] = useState<MediaStream | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RoboflowDetectionResult | null>(null);
   const [still, setStill] = useState<string | null>(null);
-  const [liveDetect, setLiveDetect] = useState(false);
-  const [intervalMs, setIntervalMs] = useState(1000);
   const [fps, setFps] = useState(0);
-
-  const startCamera = async () => {
-    setError(null);
-    try {
-      const media = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: 1280 },
-      });
-      setStream(media);
-      setCameraOn(true);
-      setStill(null);
-      if (videoRef.current) {
-        videoRef.current.srcObject = media;
-        await videoRef.current.play();
-      }
-    } catch {
-      setError("Could not access the camera. Check browser permissions or upload an image instead.");
-    }
-  };
-
-  const stopCamera = useCallback(() => {
-    stream?.getTracks().forEach((t) => t.stop());
-    setStream(null);
-    setCameraOn(false);
-  }, [stream]);
 
   const drawResult = useCallback(
     (detections: RoboflowDetectionResult, source: HTMLVideoElement | HTMLImageElement) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const srcW =
-        source instanceof HTMLVideoElement ? source.videoWidth : source.naturalWidth;
-      const srcH =
-        source instanceof HTMLVideoElement ? source.videoHeight : source.naturalHeight;
+      const srcW = source instanceof HTMLVideoElement ? source.videoWidth : source.naturalWidth;
+      const srcH = source instanceof HTMLVideoElement ? source.videoHeight : source.naturalHeight;
       if (!srcW || !srcH) return;
 
       canvas.width = srcW;
@@ -102,24 +79,14 @@ export function RoboflowDetector() {
     [],
   );
 
-  const analyze = async (
-    imageBase64: string,
-    source: HTMLVideoElement | HTMLImageElement,
-    silent = false,
-  ) => {
-    if (!silent) setAnalyzing(true);
-    setError(null);
-    try {
-      const detections = await detect({ data: { imageBase64 } });
-      setResult(detections);
-      drawResult(detections, source);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Detection failed. Please try again.");
-      throw err;
-    } finally {
-      if (!silent) setAnalyzing(false);
-    }
-  };
+  const stopCamera = useCallback(() => {
+    runningRef.current = false;
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    startedRef.current = false;
+    setCameraOn(false);
+    setFps(0);
+  }, []);
 
   const captureFrame = () => {
     const video = videoRef.current;
@@ -131,41 +98,75 @@ export function RoboflowDetector() {
     return { video, base64: capture.toDataURL("image/jpeg", 0.7).split(",")[1] ?? "" };
   };
 
-  const analyzeFrame = () => {
-    const frame = captureFrame();
-    if (!frame) return;
-    void analyze(frame.base64, frame.video).catch(() => {});
-  };
+  // Continuous loop: analyze newest frame as soon as previous inference resolves.
+  const runLoop = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    let failures = 0;
 
-  // Continuous real-time loop: analyzes the newest frame as soon as the
-  // previous inference resolves, throttled by the interval below.
-  useEffect(() => {
-    if (!liveDetect || !cameraOn) return;
-    let stopped = false;
-
-    const loop = async () => {
-      while (!stopped) {
-        const frame = captureFrame();
-        if (frame) {
-          const started = performance.now();
-          try {
-            await analyze(frame.base64, frame.video, true);
-          } catch {
-            setLiveDetect(false);
-            return;
+    while (runningRef.current) {
+      const frame = captureFrame();
+      if (frame) {
+        const started = performance.now();
+        try {
+          const detections = await detect({ data: { imageBase64: frame.base64 } });
+          if (!runningRef.current) break;
+          setResult(detections);
+          drawResult(detections, frame.video);
+          setError(null);
+          failures = 0;
+          setFps(Number((1000 / Math.max(1, performance.now() - started)).toFixed(1)));
+        } catch (err) {
+          failures += 1;
+          if (failures >= 3) {
+            setError(err instanceof Error ? err.message : "Detection failed. Retrying stopped.");
+            runningRef.current = false;
+            break;
           }
-          setFps(Math.round(1000 / Math.max(1, performance.now() - started)) || 0);
         }
-        await new Promise((r) => setTimeout(r, intervalMs));
       }
-    };
+      await new Promise((r) => setTimeout(r, 150));
+    }
+  }, [detect, drawResult]);
 
-    void loop();
-    return () => {
-      stopped = true;
-    };
+  const startCamera = useCallback(async () => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    setError(null);
+    setPermission("prompting");
+    try {
+      const media = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: 1280 },
+      });
+      streamRef.current = media;
+      setPermission("granted");
+      setCameraOn(true);
+      setStill(null);
+      if (videoRef.current) {
+        videoRef.current.srcObject = media;
+        await videoRef.current.play();
+      }
+      void runLoop();
+    } catch (err) {
+      startedRef.current = false;
+      const name = err instanceof Error ? err.name : "";
+      if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
+        setPermission("denied");
+      } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        setPermission("notfound");
+      } else {
+        setPermission("error");
+        setError(err instanceof Error ? err.message : "Could not start the camera.");
+      }
+    }
+  }, [runLoop]);
+
+  // Auto-initialize the camera once when the page mounts, and clean up on exit.
+  useEffect(() => {
+    void startCamera();
+    return () => stopCamera();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveDetect, cameraOn, intervalMs]);
+  }, []);
 
   const handleUpload = (file: File) => {
     const reader = new FileReader();
@@ -173,39 +174,51 @@ export function RoboflowDetector() {
       const dataUrl = String(reader.result);
       const base64 = dataUrl.split(",")[1] ?? "";
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         stopCamera();
         setStill(dataUrl);
-        void analyze(base64, img);
+        setAnalyzing(true);
+        try {
+          const detections = await detect({ data: { imageBase64: base64 } });
+          setResult(detections);
+          drawResult(detections, img);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Detection failed.");
+        } finally {
+          setAnalyzing(false);
+        }
       };
       img.src = dataUrl;
     };
     reader.readAsDataURL(file);
   };
 
+  const counts = result
+    ? result.predictions.reduce<Record<string, number>>((acc, p) => {
+        acc[p.className] = (acc[p.className] ?? 0) + 1;
+        return acc;
+      }, {})
+    : {};
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        {!cameraOn ? (
-          <Button size="sm" onClick={startCamera} disabled={analyzing}>
-            <Camera className="mr-2 h-4 w-4" />
-            Start camera
-          </Button>
-        ) : (
+        {cameraOn ? (
           <>
             <Button size="sm" variant="outline" onClick={stopCamera}>
               <CameraOff className="mr-2 h-4 w-4" />
-              Stop
+              Stop camera
             </Button>
-            <Button size="sm" onClick={analyzeFrame} disabled={analyzing}>
-              {analyzing ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <ScanSearch className="mr-2 h-4 w-4" />
-              )}
-              Analyze frame
-            </Button>
+            <Badge className="gap-1.5 bg-danger/10 text-danger" variant="outline">
+              <Radio className="h-3 w-3 animate-pulse" />
+              Live detection · {fps} fps
+            </Badge>
           </>
+        ) : (
+          <Button size="sm" onClick={startCamera}>
+            <Camera className="mr-2 h-4 w-4" />
+            Start camera
+          </Button>
         )}
         <Button
           size="sm"
@@ -232,6 +245,30 @@ export function RoboflowDetector() {
         </Badge>
       </div>
 
+      {permission === "prompting" && (
+        <div className="rounded-lg border border-border/60 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          Camera access is required. Please click <strong>Allow</strong> when your browser asks for
+          camera permission.
+        </div>
+      )}
+
+      {permission === "denied" && (
+        <div className="space-y-1 rounded-lg border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+          <p className="font-medium">Camera access is blocked.</p>
+          <p>
+            Click the camera or lock icon in your browser&apos;s address bar, set Camera to
+            &quot;Allow&quot; for this site, then reload the page. On Chrome you can also go to
+            Settings → Privacy and security → Site settings → Camera.
+          </p>
+        </div>
+      )}
+
+      {permission === "notfound" && (
+        <div className="rounded-lg border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+          No camera device was found. Connect a webcam and reload, or upload an image instead.
+        </div>
+      )}
+
       {error && (
         <div className="rounded-lg border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
@@ -253,10 +290,10 @@ export function RoboflowDetector() {
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-background/80">
             <ScanSearch className="h-10 w-10 opacity-60" />
             <p className="text-sm font-medium">
-              Start the camera or upload an image to run AI detection
+              Waiting for camera access to start real-time detection
             </p>
             <p className="text-xs text-background/50">
-              Detects ripe, unripe, and blighted tomatoes using your Roboflow model
+              Detects ripe, unripe, and blighted tomatoes using your trained model
             </p>
           </div>
         )}
@@ -274,17 +311,17 @@ export function RoboflowDetector() {
             {result.predictions.length === 1 ? "" : "s"} · inference in {result.inferenceTimeMs} ms
           </p>
           {result.predictions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No tomatoes detected in this frame.</p>
+            <p className="text-sm text-muted-foreground">No tomatoes in the current frame.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {result.predictions.map((p, i) => (
+              {Object.entries(counts).map(([cls, n]) => (
                 <Badge
-                  key={i}
+                  key={cls}
                   variant="outline"
                   className="text-xs font-medium"
-                  style={{ borderColor: colorForClass(p.className), color: colorForClass(p.className) }}
+                  style={{ borderColor: colorForClass(cls), color: colorForClass(cls) }}
                 >
-                  {prettify(p.className)} · {(p.confidence * 100).toFixed(0)}%
+                  {prettify(cls)} · {n}
                 </Badge>
               ))}
             </div>
