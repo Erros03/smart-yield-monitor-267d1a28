@@ -134,6 +134,14 @@ export function RoboflowDetector() {
     startedRef.current = true;
     setError(null);
     setPermission("prompting");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      startedRef.current = false;
+      setPermission("error");
+      setError(
+        "This browser/preview frame does not expose camera access. Open the app in a new browser tab (over https) and try again.",
+      );
+      return;
+    }
     try {
       const media = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: 1280 },
